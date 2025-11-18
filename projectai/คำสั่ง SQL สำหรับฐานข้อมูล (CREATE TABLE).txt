@@ -1,0 +1,88 @@
+-- กำหนดการใช้ฐานข้อมูล (ถ้ายังไม่มีให้สร้างก่อน)
+CREATE DATABASE IF NOT EXISTS `ecommerce_ai_project` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+USE `ecommerce_ai_project`;
+
+-- 1. ตาราง users (ผู้ใช้งาน, ผู้ขาย, ผู้ดูแลระบบ)
+CREATE TABLE IF NOT EXISTS `users` (
+  `user_id` INT(11) NOT NULL AUTO_INCREMENT,
+  `username` VARCHAR(50) NOT NULL UNIQUE,
+  `email` VARCHAR(100) NOT NULL UNIQUE,
+  `password_hash` VARCHAR(255) NOT NULL,
+  `role` ENUM('user', 'seller', 'admin') NOT NULL DEFAULT 'user',
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'สถานะใช้งาน: 1=Active, 0=Inactive',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 2. ตาราง sellers (ข้อมูลเพิ่มเติมของผู้ขาย)
+CREATE TABLE IF NOT EXISTS `sellers` (
+  `seller_id` INT(11) NOT NULL,
+  `shop_name` VARCHAR(100) NOT NULL UNIQUE,
+  `shop_description` TEXT,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`seller_id`),
+  FOREIGN KEY (`seller_id`) REFERENCES `users`(`user_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 3. ตาราง products (สินค้า)
+CREATE TABLE IF NOT EXISTS `products` (
+  `product_id` INT(11) NOT NULL AUTO_INCREMENT,
+  `seller_id` INT(11) NOT NULL,
+  `name` VARCHAR(255) NOT NULL,
+  `description` TEXT,
+  `price` DECIMAL(10, 2) NOT NULL,
+  `stock_quantity` INT(11) NOT NULL DEFAULT 0,
+  `image_url` VARCHAR(255) DEFAULT NULL,
+  `is_approved` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '0=รออนุมัติ, 1=อนุมัติแล้ว',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`product_id`),
+  FOREIGN KEY (`seller_id`) REFERENCES `sellers`(`seller_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 4. ตาราง cart (ตะกร้าสินค้า - สำหรับผู้ใช้ทั่วไป)
+CREATE TABLE IF NOT EXISTS `cart` (
+  `cart_id` INT(11) NOT NULL AUTO_INCREMENT,
+  `user_id` INT(11) NOT NULL,
+  `product_id` INT(11) NOT NULL,
+  `quantity` INT(11) NOT NULL,
+  PRIMARY KEY (`cart_id`),
+  UNIQUE KEY `unique_user_product` (`user_id`, `product_id`),
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`user_id`) ON DELETE CASCADE,
+  FOREIGN KEY (`product_id`) REFERENCES `products`(`product_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 5. ตาราง orders (คำสั่งซื้อหลัก)
+CREATE TABLE IF NOT EXISTS `orders` (
+  `order_id` INT(11) NOT NULL AUTO_INCREMENT,
+  `user_id` INT(11) NOT NULL,
+  `total_amount` DECIMAL(10, 2) NOT NULL,
+  `shipping_address` TEXT NOT NULL,
+  `order_status` ENUM('pending', 'processing', 'shipped', 'delivered', 'cancelled') NOT NULL DEFAULT 'pending',
+  `order_date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`order_id`),
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`user_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 6. ตาราง order_items (รายการสินค้าในคำสั่งซื้อ)
+CREATE TABLE IF NOT EXISTS `order_items` (
+  `item_id` INT(11) NOT NULL AUTO_INCREMENT,
+  `order_id` INT(11) NOT NULL,
+  `product_id` INT(11) NOT NULL,
+  `seller_id` INT(11) NOT NULL, -- เก็บ seller_id เพื่อให้ seller จัดการได้ง่าย
+  `quantity` INT(11) NOT NULL,
+  `price_per_unit` DECIMAL(10, 2) NOT NULL,
+  PRIMARY KEY (`item_id`),
+  FOREIGN KEY (`order_id`) REFERENCES `orders`(`order_id`) ON DELETE CASCADE,
+  FOREIGN KEY (`product_id`) REFERENCES `products`(`product_id`) ON DELETE RESTRICT,
+  FOREIGN KEY (`seller_id`) REFERENCES `sellers`(`seller_id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ข้อมูลเริ่มต้น (สำหรับทดสอบ: รหัสผ่านทั้งหมดคือ 123456)
+INSERT INTO `users` (`username`, `email`, `password_hash`, `role`) VALUES
+('admin', 'admin@example.com', '$2y$10$wTf7hWn3h.j9V.gQoU4GgO6Fw5JqJ4T9L.V3F3bF5vY1A7XpS4kC.Z', 'admin'),
+('seller1', 'seller1@example.com', '$2y$10$wTf7hWn3h.j9V.gQoU4GgO6Fw5JqJ4T9L.V3F3bF5vY1A7XpS4kC.Z', 'seller'),
+('user1', 'user1@example.com', '$2y$10$wTf7hWn3h.j9V.gQoU4GgO6Fw5JqJ4T9L.V3F3bF5vY1A7XpS4kC.Z', 'user');
+
+INSERT INTO `sellers` (`seller_id`, `shop_name`) VALUES
+(2, 'Shop of Seller 1');
